@@ -1,96 +1,173 @@
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.Scanner;
 
 public class BookManager {
-    private ArrayList<Book> books = new ArrayList<>();
-    private final AuthorManager authorManager;
     private final Scanner scanner;
+    private final Connection connection;
 
-    public BookManager(AuthorManager authorManager, Scanner scanner) {
-        this.authorManager = authorManager;
+    public BookManager(Connection connection, Scanner scanner) {
+        this.connection = connection;
         this.scanner = scanner;
     }
 
     public void addBook(String title, int authorId) {
-        Author author = authorManager.getAuthorById(authorId);
+        // If the author exists, proceed to add the book to the books table
+        String sql = "INSERT INTO books (title, author_id) VALUES (?, ?)";
 
-        if (author == null) {
-            System.out.println("Invalid author ID.");
-            return;
+        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            preparedStatement.setString(1, title);
+            preparedStatement.setInt(2, authorId);
+
+            int rowsAffected = preparedStatement.executeUpdate();
+
+            if (rowsAffected > 0) {
+                System.out.println("Book Added Successfully! \n");
+            } else {
+                System.out.println("Author not found. \n");
+            }
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
         }
-        books.add(
-                new Book(title, authorId)
-        );
-        System.out.println("Book Added Successfully! \n");
     }
 
     public void deleteBook(int id) {
-        for (Book book : books) {
-            if (book.getId() == id) {
-                books.remove(book);
-                System.out.println("Book Deleted Successfully! \n");
-                return;
-            }
-        }
-        System.out.println("Book not found.\n");
-    }
+        String deleteBookQuery = "DELETE FROM books WHERE id = ?";
 
-    public void deleteBooksByAuthorId(int authorId) {
-        books.removeIf(book -> book.getAuthorId() == authorId);
-        System.out.println("All books by the author with ID " + authorId + " have been deleted.\n");
+        try (PreparedStatement preparedStatement = connection.prepareStatement(deleteBookQuery)) {
+            preparedStatement.setInt(1, id);
+
+            int rowsAffected = preparedStatement.executeUpdate();
+
+            if (rowsAffected > 0) {
+                System.out.println("Book Deleted Successfully! \n");
+            } else {
+                System.out.println("Book not found.\n");
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
+        }
     }
 
     public void updateBook(int id, String title, int authorId) {
-        Author author = authorManager.getAuthorById(authorId);
-        if (author == null) {
-            System.out.println("Invalid author ID.");
-            return;
-        }
-        for (Book book : books) {
-            if (book.getId() == id) {
-                book.setTitle(title);
-                book.setAuthorId(authorId);
-                System.out.println("Book updated successfully! \n");
-                return;
+        String updateBookQuery = "UPDATE books SET title = ?, author_id = ? WHERE id = ?";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(updateBookQuery)) {
+            preparedStatement.setString(1, title);
+            preparedStatement.setInt(2, authorId);
+            preparedStatement.setInt(2, id);
+
+            int rowsAffected = preparedStatement.executeUpdate();
+
+            if (rowsAffected > 0) {
+                System.out.println("Book Deleted Successfully! \n");
+            } else {
+                System.out.println("Book not found.\n");
             }
+
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
         }
-        System.out.println("Book not found.\n");
     }
 
     public void viewBooks() {
-        if (!books.isEmpty()) {
-            for (Book book : books) {
+
+        String viewBooksQuery = "SELECT * FROM books";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(viewBooksQuery)) {
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            boolean booksFound = false;
+
+            while (resultSet.next()) {
+                int id = resultSet.getInt("id");
+                String title = resultSet.getString("title");
+                int authorId = resultSet.getInt("author_id");
+
+                // Assuming Book has a constructor that takes id, title, and authorId
+                Book book = new Book(id, title, authorId);
+
                 System.out.println(book.toString());
+                booksFound = true; // Set flag to true since at least one book is found
             }
-        } else {
-            System.out.println("Book not found.\n");
+
+            if (!booksFound) {
+                System.out.println("No books found.\n");
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
         }
     }
 
     public void searchBookByTitle(String title) {
-        for (Book book : books) {
-            if (book.getTitle().toLowerCase().contains(title)) {
+        String searchQuery = "SELECT * FROM books WHERE LOWER(title) LIKE ?";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(searchQuery)) {
+            preparedStatement.setString(1, "%" + title.toLowerCase() + "%"); // Use wildcards for partial matching
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            boolean booksFound = false;
+
+            while (resultSet.next()) {
+                int id = resultSet.getInt("id");
+                String bookTitle = resultSet.getString("title");
+                int authorId = resultSet.getInt("author_id");
+
+                // Assuming Book has a constructor that takes id, title, and authorId
+                Book book = new Book(id, bookTitle, authorId);
+
                 System.out.println(book.toString());
+                booksFound = true;
             }
+
+            if (!booksFound) {
+                System.out.println("No books found with the title containing: " + title);
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
         }
     }
 
     public void searchBooksByAuthor(String name) {
-        for (Book book : books) {
-            if (book.getTitle().toLowerCase().contains(name)) {
+
+        String searchQuery = "SELECT books.title " +
+                "FROM books " +
+                "JOIN authors ON books.author_id = authors.id " +
+                "WHERE LOWER(authors.name) LIKE ?";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(searchQuery)) {
+            preparedStatement.setString(1, "%" + name.toLowerCase() + "%"); // Use wildcards for partial matching
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            boolean booksFound = false;
+
+            while (resultSet.next()) {
+                int id = resultSet.getInt("id");
+                String bookTitle = resultSet.getString("title");
+                int authorId = resultSet.getInt("author_id");
+
+                // Assuming Book has a constructor that takes id, title, and authorId
+                Book book = new Book(id, bookTitle, authorId);
+
                 System.out.println(book.toString());
+                booksFound = true;
             }
+
+            if (!booksFound) {
+                System.out.println("No books found with the author name containing: " + name);
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
         }
     }
 
-    public Book getBookById(int id) {
-        for (Book book : books) {
-            if (book.getId() == id) {
-                return book;
-            }
-        }
-        return null;
-    }
 
     public void manageBooks() {
         while (true) {
@@ -143,7 +220,7 @@ public class BookManager {
                 case 6 -> {
                     System.out.print("Enter author name: ");
                     String name = scanner.nextLine();
-                    searchBookByTitle(name);
+                    searchBooksByAuthor(name);
                 }
                 case 7 -> {
                     System.out.println("Navigating back!");

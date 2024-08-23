@@ -1,12 +1,11 @@
 public class Book {
-    private static int nextId = 1;
     private int id;
     private String title;
     private int authorId;
 
 
-    public Book(String title, int authorId) {
-        this.id = nextId++;
+    public Book(int id, String title, int authorId) {
+        this.id = id;
         this.title = title;
         this.authorId = authorId;
     }

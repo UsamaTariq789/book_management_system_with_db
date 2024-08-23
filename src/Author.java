@@ -1,10 +1,9 @@
-public class Author {
-    private static int nextId = 1;
+public class Author {;
     private int id;
     private String name;
 
-    Author(String name) {
-        this.id = nextId++;
+    Author(int id, String name) {
+        this.id = id;
         this.name = name;
     }
 

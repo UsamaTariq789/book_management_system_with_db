@@ -1,86 +1,149 @@
+import java.sql.*;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Scanner;
 
 public class AuthorManager {
-    private List<Author> authors = new ArrayList<>();
     private final Scanner scanner;
+    private final Connection connection;
 
-    AuthorManager(Scanner scanner) {
+    AuthorManager(Connection connection, Scanner scanner) {
+        this.connection = connection;
         this.scanner = scanner;
     }
 
     public void addAuthor(String name) {
-        authors.add(
-                new Author(name)
-        );
-        System.out.println("Author Added Successfully! \n");
+
+        String sql = "INSERT INTO authors (name) VALUES (?)";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            preparedStatement.setString(1, name);
+
+            int rowsAffected = preparedStatement.executeUpdate();
+
+            if (rowsAffected > 0) {
+                System.out.println("Author Added Successfully! \n");
+            } else {
+                System.out.println("Failed to add Author. \n");
+            }
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
+        }
     }
 
-    public void deleteAuthor(int id, BookManager bookManager) {
-        for (Author author : authors) {
-            if (author.getId() == id) {
-                while (true) {
-                    System.out.println("Deleting Author will also delete its books. Choose Option.");
-                    System.out.println("1.Delete");
-                    System.out.println("2.Cancel");
+    public void deleteAuthor(int id) {
 
-                    int choice = Integer.parseInt(scanner.nextLine());
+        while (true) {
+            System.out.println("Deleting Author will also delete its books. Choose Option.");
+            System.out.println("1.Delete");
+            System.out.println("2.Cancel");
 
-                    switch (choice) {
-                        case 1 -> {
-                            authors.remove(author);
-                            bookManager.deleteBooksByAuthorId(id);
+            int choice = Integer.parseInt(scanner.nextLine());
+
+            switch (choice) {
+                case 1 -> {
+                    String deleteAuthorQuery = "DELETE FROM authors WHERE id = ?";
+
+                    try (PreparedStatement preparedStatement = connection.prepareStatement(deleteAuthorQuery)) {
+                        preparedStatement.setInt(1, id);
+
+                        int rowsAffected = preparedStatement.executeUpdate();
+                        if (rowsAffected > 0) {
                             System.out.println("Author Deleted Successfully! \n");
-                            return;
+                        } else {
+                            System.out.println("Author not found.\n");
                         }
-                        case 2 -> {
-                            return;
-                        }
+                    } catch (SQLException e) {
+                        System.out.println("Database error: " + e.getMessage());
                     }
+                    return;
+                }
+                case 2 -> {
+                    return;
                 }
             }
         }
-        System.out.println("Author not found.\n");
     }
 
     public void updateAuthor(int id, String name) {
-        for (Author author : authors) {
-            if (author.getId() == id) {
-                author.setName(name);
-                System.out.println("Author updated successfully! \n");
-                return;
+
+        String updateBookQuery = "UPDATE authors SET name = ? WHERE id = ?";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(updateBookQuery)) {
+            preparedStatement.setString(1, name);
+            preparedStatement.setInt(2, id);
+
+            int rowsAffected = preparedStatement.executeUpdate();
+
+            if (rowsAffected > 0) {
+                System.out.println("Author Updated Successfully! \n");
+            } else {
+                System.out.println("Author not found.\n");
             }
+
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
         }
-        System.out.println("Author not found.\n");
     }
 
     public void viewAuthors() {
-        if (!authors.isEmpty()) {
-            for (Author author : authors) {
+
+        String viewAuthorsQuery = "SELECT * FROM authors";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(viewAuthorsQuery)) {
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            boolean authorsFound = false;
+
+            while (resultSet.next()) {
+                int id = resultSet.getInt("id");
+                String name = resultSet.getString("name");
+
+                // Assuming Book has a constructor that takes id, title, and authorId
+                Author author = new Author(id, name);
+
                 System.out.println(author.toString());
-                System.out.println();
+                authorsFound = true; // Set flag to true since at least one book is found
             }
-        } else {
-            System.out.println("Author not found.\n");
+
+            if (!authorsFound) {
+                System.out.println("No Authors found.\n");
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
         }
     }
 
-    public void searchAuthorByName(String name) {
-        for (Author author : authors) {
-            if (author.getName().toLowerCase().contains(name)) {
-                System.out.println(author.toString());
-            }
-        }
-    }
+    public void searchAuthorByName(String authorName) {
 
-    public Author getAuthorById(int id) {
-        for (Author author : authors) {
-            if (author.getId() == id) {
-                return author;
+        String searchQuery = "SELECT * FROM authors WHERE LOWER(name) LIKE ?";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(searchQuery)) {
+            preparedStatement.setString(1, "%" + authorName.toLowerCase() + "%"); // Use wildcards for partial matching
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            boolean authorsFound = false;
+
+            while (resultSet.next()) {
+                int id = resultSet.getInt("id");
+                String name = resultSet.getString("name");
+
+                // Assuming Book has a constructor that takes id, title, and authorId
+                Author author = new Author(id, name);
+
+                System.out.println(author.toString());
+                authorsFound = true;
             }
+
+            if (!authorsFound) {
+                System.out.println("No authors found with the name containing: " + authorName);
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Database error: " + e.getMessage());
         }
-        return null;
     }
 
     public void manageAuthors(BookManager bookManager) {
@@ -106,7 +169,7 @@ public class AuthorManager {
                     System.out.print("Enter Author id: ");
                     int id = scanner.nextInt();
                     scanner.nextLine();
-                    deleteAuthor(id, bookManager);
+                    deleteAuthor(id);
                 }
                 case 3 -> {
                     System.out.print("Enter Author id: ");
